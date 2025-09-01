@@ -208,7 +208,6 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
                   {/* Locked pill */}
                   {isLocked && (
                     <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-300 text-green-800 bg-green-50">
-                      🔒 Locked
                     </span>
                   )}
                 </li>
