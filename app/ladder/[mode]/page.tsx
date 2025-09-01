@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { formatET } from "@/lib/time"; // using formatET for puzzle date
+import { formatET } from "@/lib/time";
 
-// API data types
 type LadderItem = { label: string; rank: number };
 type LadderPuzzle = {
   kind: "ladder";
@@ -29,7 +28,16 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
   const [feedback, setFeedback] = useState<boolean[] | null>(null); // per-position correctness
   const [locked, setLocked] = useState<Set<number>>(new Set()); // indices locked in place
 
-  // Native DnD bookkeeping
+  // Detect touch to decide between DnD (desktop) vs buttons (mobile)
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const touch =
+      typeof window !== "undefined" &&
+      (("ontouchstart" in window) || (navigator as any).maxTouchPoints > 0);
+    setIsTouch(!!touch);
+  }, []);
+
+  // DnD bookkeeping (desktop only)
   const dragIndex = useRef<number | null>(null);
 
   useEffect(() => {
@@ -46,7 +54,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
         setAttempts(3);
         setStatus("playing");
         setFeedback(null);
-        setLocked(new Set()); // clear locks on new puzzle
+        setLocked(new Set());
       })
       .catch((err) => console.error(err));
   }, [mode, seed]);
@@ -56,9 +64,10 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     return [...puzzle.items].sort((a, b) => a.rank - b.rank).map((x) => x.label);
   }, [puzzle]);
 
-  // Swap-only move between two indices; ignore if either index is locked
+  // Swap-only move; ignore if either index is locked or out of range
   const swap = (i: number, j: number) => {
     if (i === j) return;
+    if (i < 0 || j < 0 || i >= order.length || j >= order.length) return;
     if (locked.has(i) || locked.has(j)) return;
     setOrder((prev) => {
       const a = prev.slice();
@@ -67,6 +76,9 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     });
   };
 
+  const moveUp = (i: number) => swap(i, i - 1);
+  const moveDown = (i: number) => swap(i, i + 1);
+
   const submit = () => {
     if (!puzzle || status !== "playing") return;
     const current = order.map((x) => x.label);
@@ -74,12 +86,10 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     const allRight = perPos.every(Boolean);
     setFeedback(perPos);
 
-    // Lock any newly-correct positions
+    // Lock newly correct positions
     setLocked((prev) => {
       const next = new Set(prev);
-      perPos.forEach((ok, i) => {
-        if (ok) next.add(i);
-      });
+      perPos.forEach((ok, i) => { if (ok) next.add(i); });
       return next;
     });
 
@@ -92,43 +102,38 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     }
   };
 
-  const playRandom = () => {
-    router.push(`/ladder/random?seed=${Date.now()}`);
-  };
+  const playRandom = () => router.push(`/ladder/random?seed=${Date.now()}`);
 
-  // DnD handlers — swap items only if both positions are unlocked
+  // DnD handlers (desktop only)
   const onDragStart = (idx: number, isLocked: boolean) => (e: React.DragEvent) => {
-    if (isLocked || status !== "playing") {
+    if (isTouch || isLocked || status !== "playing") {
       e.preventDefault();
       return;
     }
     dragIndex.current = idx;
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(idx)); // helpful for FF
+    e.dataTransfer.setData("text/plain", String(idx));
   };
-
-  const onDragOver = (idx: number, isLocked: boolean) => (e: React.DragEvent) => {
-    if (status !== "playing") return;
-    // Allow drop even over locked targets; we'll block in onDrop if locked
+  const onDragOver = (idx: number) => (e: React.DragEvent) => {
+    if (isTouch || status !== "playing") return;
     e.preventDefault();
   };
-
-  const onDrop = (idx: number, isLocked: boolean) => (e: React.DragEvent) => {
+  const onDrop = (idx: number) => (e: React.DragEvent) => {
+    if (isTouch) return;
     e.preventDefault();
     const from = dragIndex.current;
     dragIndex.current = null;
     if (from == null) return;
-    if (isLocked || locked.has(from)) return;
     swap(from, idx);
   };
-
   const onDragEnd = () => {
+    if (isTouch) return;
     dragIndex.current = null;
   };
 
   return (
     <main className="max-w-md mx-auto p-6">
-      {/* Header matches Index style with null-safe date */}
+      {/* Header like Index */}
       <header className="mb-4 flex items-center justify-between">
         <Link href="/" className="text-sm underline">← Home</Link>
         <h1 className="text-2xl font-bold">Ladder</h1>
@@ -145,13 +150,12 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
         <div>Loading…</div>
       ) : (
         <div>
-          {/* Keep category line; instructions removed */}
           <div className="mb-3 text-xs text-gray-600">
             Category: <strong>{puzzle.category_name}</strong>
             {puzzle.source ? <> · <em>{puzzle.source}</em></> : null}
           </div>
 
-          {/* Draggable list; locked items are green, non-draggable, and show 🔒 */}
+          {/* List: mobile shows Up/Down buttons; desktop supports DnD */}
           <ul className="space-y-2 mb-4">
             {order.map((it, idx) => {
               const ok = feedback ? feedback[idx] : null;
@@ -159,34 +163,52 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
               return (
                 <li
                   key={idx}
-                  draggable={!isLocked && status === "playing"}
+                  draggable={!isTouch && !isLocked && status === "playing"}
                   onDragStart={onDragStart(idx, isLocked)}
-                  onDragOver={onDragOver(idx, isLocked)}
-                  onDrop={onDrop(idx, isLocked)}
+                  onDragOver={onDragOver(idx)}
+                  onDrop={onDrop(idx)}
                   onDragEnd={onDragEnd}
                   className={[
                     "flex items-center gap-3 border rounded-lg px-3 py-2 select-none",
-                    isLocked ? "cursor-not-allowed" : "cursor-move",
+                    isLocked ? "cursor-not-allowed" : (isTouch ? "cursor-default" : "cursor-move"),
                     ok === true
                       ? "bg-green-100 border-green-300"
                       : ok === false
                       ? "bg-red-100 border-red-300"
                       : "bg-white",
                   ].join(" ")}
-                  aria-roledescription="Draggable list item"
-                  aria-grabbed={(!isLocked && status === "playing") ? true : undefined}
                 >
-                  {/* Position number clearly separated */}
+                  {/* Position number separated */}
                   <span className="w-8 text-center font-medium">{idx + 1}</span>
                   <span className="h-5 border-l" />
                   <span className="pl-2 flex-1">{it.label}</span>
 
-                  {/* Locked badge */}
+                  {/* Mobile-only Up/Down buttons; hidden on desktop */}
+                  {isTouch && status === "playing" && (
+                    <div className="flex gap-1">
+                      <button
+                        className="px-2 py-1 rounded border disabled:opacity-50"
+                        onClick={() => moveUp(idx)}
+                        disabled={idx === 0 || isLocked || locked.has(idx - 1)}
+                        aria-label={`Move ${it.label} up`}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="px-2 py-1 rounded border disabled:opacity-50"
+                        onClick={() => moveDown(idx)}
+                        disabled={idx === order.length - 1 || isLocked || locked.has(idx + 1)}
+                        aria-label={`Move ${it.label} down`}
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Locked pill */}
                   {isLocked && (
-                    <span
-                      className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-300 text-green-800 bg-green-50"
-                      title="Locked in correct position"
-                    >
+                    <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-300 text-green-800 bg-green-50">
+                      🔒 Locked
                     </span>
                   )}
                 </li>
@@ -203,76 +225,57 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
             </div>
           )}
 
-            {status === "win" && (
+          {status === "win" && (
             <div className="mt-4 border rounded-2xl p-4">
-                <h3 className="text-lg font-semibold">You win</h3>
-
-                <div className="mt-2 text-sm text-gray-800">
+              <h3 className="text-lg font-semibold">You win</h3>
+              <div className="mt-2 text-sm text-gray-800">
                 Correct order:
                 <ol className="mt-2 list-decimal list-inside space-y-1">
-                    {order
-                    .map((it) => it)
+                  {[...order]
                     .sort((a, b) => a.rank - b.rank)
                     .map((it) => (
-                        <li key={it.label} className="ml-4">
+                      <li key={it.label} className="ml-4">
                         {it.label} <span className="text-gray-500">({it.rank})</span>
-                        </li>
+                      </li>
                     ))}
                 </ol>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                    onClick={playRandom}
-                    className="h-11 rounded-xl bg-black text-white font-medium"
-                >
-                    Play Again (Random)
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button onClick={playRandom} className="h-11 rounded-xl bg-black text-white font-medium">
+                  Play Again (Random)
                 </button>
-                <Link
-                    href="/"
-                    className="h-11 rounded-xl border font-medium flex items-center justify-center"
-                >
-                    Home
+                <Link href="/" className="h-11 rounded-xl border font-medium flex items-center justify-center">
+                  Home
                 </Link>
-                </div>
+              </div>
             </div>
-            )}
+          )}
 
-            {status === "lose" && (
-                <div className="mt-4 border rounded-2xl p-4">
-                    <h3 className="text-lg font-semibold">You lose</h3>
-
-                    <div className="mt-2 text-sm text-gray-800">
-                    Correct order:
-                    <ol className="mt-2 list-decimal list-inside space-y-1">
-                        {order
-                        .map((it) => it)
-                        .sort((a, b) => a.rank - b.rank)
-                        .map((it) => (
-                            <li key={it.label} className="ml-4">
-                            {it.label} <span className="text-gray-500">({it.rank})</span>
-                            </li>
-                        ))}
-                    </ol>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button
-                        onClick={playRandom}
-                        className="h-11 rounded-xl bg-black text-white font-medium"
-                    >
-                        Play Again (Random)
-                    </button>
-                    <Link
-                        href="/"
-                        className="h-11 rounded-xl border font-medium flex items-center justify-center"
-                    >
-                        Home
-                    </Link>
-                    </div>
-                </div>
-                )}
-
+          {status === "lose" && (
+            <div className="mt-4 border rounded-2xl p-4">
+              <h3 className="text-lg font-semibold">You lose</h3>
+              <div className="mt-2 text-sm text-gray-800">
+                Correct order:
+                <ol className="mt-2 list-decimal list-inside space-y-1">
+                  {[...order]
+                    .sort((a, b) => a.rank - b.rank)
+                    .map((it) => (
+                      <li key={it.label} className="ml-4">
+                        {it.label} <span className="text-gray-500">({it.rank})</span>
+                      </li>
+                    ))}
+                </ol>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button onClick={playRandom} className="h-11 rounded-xl bg-black text-white font-medium">
+                  Play Again (Random)
+                </button>
+                <Link href="/" className="h-11 rounded-xl border font-medium flex items-center justify-center">
+                  Home
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>
