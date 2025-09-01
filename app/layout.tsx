@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Rankle",
+  title: "in the 100",
   description: "Guess the shared rank across five Top 100 lists."
 };
 
