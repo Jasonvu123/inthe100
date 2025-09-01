@@ -76,7 +76,8 @@ export default function PlayPage({ params }: { params: { mode: "today" | "random
   return (
     <main className="max-w-md mx-auto p-6">
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">In the 100</h1>
+        <Link href="/" className="text-sm underline">← Home</Link>
+        <h1 className="text-2xl font-bold">Index</h1>
         {isRandom ? (
           <span className="text-xs px-2 py-1 rounded-full border">Random</span>
         ) : (

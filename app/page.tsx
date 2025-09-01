@@ -13,20 +13,46 @@ export default function Home() {
         <h1 className="text-3xl font-bold">In the 100</h1>
       </header>
 
-      <section className="p-4 border rounded-2xl">
-        <h2 className="font-semibold">How to play</h2>
-        <ul className="mt-3 space-y-2 text-sm text-gray-700">
-          <li>• Five items, each from a different Top-100 list, all share the <strong>same rank (1–100)</strong>.</li>
-          <li>• You get <strong>5 guesses</strong> with Hot/Cold → Hotter/Colder feedback.</li>
-          <li>• Each card has one <strong>Hint</strong> that shows another item from the same list near that rank (±2..±5).</li>
-          <li>• All five cards are visible; the <strong>next card unlocks</strong> after each guess.</li>
+      {/* Index (first game) */}
+      <section className="mb-6 border rounded-xl p-4 shadow-sm">
+        <h2 className="text-xl font-semibold mb-2">Index</h2>
+        <ul className="list-disc list-inside text-sm text-gray-700 mb-3 space-y-1">
+          <li>You’ll see 5 items, each from a different Top-100 list.</li>
+          <li>All share the same hidden rank (1–100).</li>
+          <li>You get 5 guesses with Hot/Cold → Hotter/Colder feedback.</li>
+          <li>Each card has a Hint showing a nearby item.</li>
         </ul>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button onClick={goToday} className="px-4 py-2 rounded-xl bg-black text-white">
+        <div className="flex gap-2">
+          <button onClick={goToday} className="px-4 py-2 rounded-lg bg-black text-white">
             Play Today
           </button>
-          <button onClick={goRandom} className="px-4 py-2 rounded-xl border">
+          <button onClick={goRandom} className="px-4 py-2 rounded-lg border">
+            Random
+          </button>
+        </div>
+      </section>
+
+
+      {/* Ladder (second game) */}
+      <section className="mb-6 border rounded-xl p-4 shadow-sm">
+        <h2 className="text-xl font-semibold mb-2">Ladder</h2>
+        <ul className="list-disc list-inside text-sm text-gray-700 mb-3 space-y-1">
+          <li>You’ll see 5 items from a Top-100 list.</li>
+          <li>Reorder them by their true ranking (top = #1).</li>
+          <li>Submit to check — each position turns red/green.</li>
+          <li>You have 3 guesses.</li>
+        </ul>
+        <div className="flex gap-2">
+          <button
+            onClick={() => router.push("/ladder/today")}
+            className="px-4 py-2 rounded-lg bg-black text-white"
+          >
+            Play Today
+          </button>
+          <button
+            onClick={() => router.push(`/ladder/random?seed=${Date.now()}`)}
+            className="px-4 py-2 rounded-lg border"
+          >
             Random
           </button>
         </div>

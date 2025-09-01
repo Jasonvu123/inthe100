@@ -964,7 +964,7 @@
 },
 {
   "id": "espn_top_100_athletes_21st_century_2024",
-  "name": "Top Athletes of the 21st Century (ESPN, 2000–2024)",
+  "name": "Top Athletes of the 21st Century (2000–2024)",
   "source": "espn.com",
   "items": {
     "1": "Michael Phelps",
@@ -1606,7 +1606,7 @@
 },
 {
   "id": "us_surnames_top_100_2010",
-  "name": "Top 100 U.S. Surnames (2010 Census)",
+  "name": "Top 100 U.S. Surnames (2010)",
   "source": "census.gov",
   "items": {
     "1": "Smith",
@@ -1713,7 +1713,7 @@
 },
 {
   "id": "us_surnames_top_100_2010",
-  "name": "Top U.S. Surnames (2010 Census)",
+  "name": "Top U.S. Surnames (2010)",
   "source": "census.gov",
   "items": {
     "1": "Smith",
@@ -1927,7 +1927,7 @@
 },
 {
   "id": "tasteatlas_best_cuisines_2024_25",
-  "name": "Best Cuisines in the World (TasteAtlas Awards 24/25)",
+  "name": "Best Cuisines in the World (2024)",
   "source": "TasteAtlas",
   "items": {
     "1": "Greek",
@@ -2034,7 +2034,7 @@
 },
 {
   "id": "tasteatlas_best_dishes_2024_25",
-  "name": "Best Dishes in the World (TasteAtlas Awards 24/25)",
+  "name": "Best Dishes in the World (2024)",
   "source": "TasteAtlas",
   "items": {
     "1": "Lechona",
@@ -3746,8 +3746,8 @@
 },
 {
   "id": "myanimelist_top_anime_snapshot",
-  "name": "Highest Rated Animes (by MyAnimeList Aug 2025)",
-  "source": "myanimellist.net)",
+  "name": "Highest Rated Animes",
+  "source": "myanimellist.net",
   "items": {
     "1": "Sousou no Frieren",
     "2": "Fullmetal Alchemist: Brotherhood",
