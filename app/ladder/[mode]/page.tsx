@@ -28,13 +28,13 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
   const [feedback, setFeedback] = useState<boolean[] | null>(null); // per-position correctness
   const [locked, setLocked] = useState<Set<number>>(new Set()); // indices locked in place
 
-  // Detect touch to decide between DnD (desktop) vs buttons (mobile)
+  // Robust touch detection (so buttons appear on phones)
   const [isTouch, setIsTouch] = useState(false);
   useEffect(() => {
-    const touch =
-      typeof window !== "undefined" &&
-      (("ontouchstart" in window) || (navigator as any).maxTouchPoints > 0);
-    setIsTouch(!!touch);
+    const hasCoarse = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    const hasTouchStart = typeof window !== "undefined" && ("ontouchstart" in window);
+    const hasMTP = typeof navigator !== "undefined" && (navigator as any).maxTouchPoints > 0;
+    setIsTouch(Boolean(hasCoarse || hasTouchStart || hasMTP));
   }, []);
 
   // DnD bookkeeping (desktop only)
@@ -64,20 +64,45 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     return [...puzzle.items].sort((a, b) => a.rank - b.rank).map((x) => x.label);
   }, [puzzle]);
 
-  // Swap-only move; ignore if either index is locked or out of range
-  const swap = (i: number, j: number) => {
-    if (i === j) return;
-    if (i < 0 || j < 0 || i >= order.length || j >= order.length) return;
-    if (locked.has(i) || locked.has(j)) return;
-    setOrder((prev) => {
+  // --- Reorder helpers (INSERT semantics so reds can move past locked greens) ---
+
+  // Find nearest UNLOCKED index at/near `target`, scanning in `dir` (-1 up, +1 down).
+  const nearestUnlocked = (target: number, dir: -1 | 1): number | null => {
+    let j = target;
+    while (j >= 0 && j < order.length) {
+      if (!locked.has(j)) return j;
+      j += dir;
+    }
+    return null;
+  };
+
+  // Insert item from index i into index j (shifts list). Blocks if dest is null or same slot.
+  const insertAt = (i: number, j: number) => {
+    if (i === j || j == null || j < 0 || j >= order.length) return;
+    if (locked.has(i) || locked.has(j)) return; // don't move a locked item or into a locked slot
+    setOrder(prev => {
       const a = prev.slice();
-      [a[i], a[j]] = [a[j], a[i]];
+      const [item] = a.splice(i, 1);
+      // after removing, the target index may shift if i < j
+      const target = i < j ? j - 1 : j;
+      a.splice(target, 0, item);
       return a;
     });
   };
 
-  const moveUp = (i: number) => swap(i, i - 1);
-  const moveDown = (i: number) => swap(i, i + 1);
+  const moveUp = (i: number) => {
+    if (i <= 0) return;
+    const dest = nearestUnlocked(i - 1, -1);
+    if (dest == null) return;
+    insertAt(i, dest);
+  };
+
+  const moveDown = (i: number) => {
+    if (i >= order.length - 1) return;
+    const dest = nearestUnlocked(i + 1, +1);
+    if (dest == null) return;
+    insertAt(i, dest);
+  };
 
   const submit = () => {
     if (!puzzle || status !== "playing") return;
@@ -87,7 +112,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     setFeedback(perPos);
 
     // Lock newly correct positions
-    setLocked((prev) => {
+    setLocked(prev => {
       const next = new Set(prev);
       perPos.forEach((ok, i) => { if (ok) next.add(i); });
       return next;
@@ -104,7 +129,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
 
   const playRandom = () => router.push(`/ladder/random?seed=${Date.now()}`);
 
-  // DnD handlers (desktop only)
+  // --- Desktop DnD (now INSERT semantics too) ---
   const onDragStart = (idx: number, isLocked: boolean) => (e: React.DragEvent) => {
     if (isTouch || isLocked || status !== "playing") {
       e.preventDefault();
@@ -114,18 +139,27 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(idx));
   };
+
   const onDragOver = (idx: number) => (e: React.DragEvent) => {
     if (isTouch || status !== "playing") return;
     e.preventDefault();
   };
+
   const onDrop = (idx: number) => (e: React.DragEvent) => {
     if (isTouch) return;
     e.preventDefault();
     const from = dragIndex.current;
     dragIndex.current = null;
     if (from == null) return;
-    swap(from, idx);
+
+    // If dropping on a locked slot, choose nearest unlocked in the direction of movement
+    let dest = idx;
+    if (locked.has(dest)) {
+      dest = from < idx ? (nearestUnlocked(idx - 1, -1) ?? from) : (nearestUnlocked(idx + 1, +1) ?? from);
+    }
+    insertAt(from, dest);
   };
+
   const onDragEnd = () => {
     if (isTouch) return;
     dragIndex.current = null;
@@ -155,7 +189,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
             {puzzle.source ? <> · <em>{puzzle.source}</em></> : null}
           </div>
 
-          {/* List: mobile shows Up/Down buttons; desktop supports DnD */}
+          {/* List: Mobile shows Up/Down; Desktop supports DnD. Locked rows hide buttons and disable drag. */}
           <ul className="space-y-2 mb-4">
             {order.map((it, idx) => {
               const ok = feedback ? feedback[idx] : null;
@@ -183,13 +217,13 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
                   <span className="h-5 border-l" />
                   <span className="pl-2 flex-1">{it.label}</span>
 
-                  {/* Mobile-only Up/Down buttons; hidden on desktop */}
-                  {isTouch && status === "playing" && (
+                  {/* Mobile-only Up/Down (hidden if locked or not playing) */}
+                  {isTouch && status === "playing" && !isLocked && (
                     <div className="flex gap-1">
                       <button
                         className="px-2 py-1 rounded border disabled:opacity-50"
                         onClick={() => moveUp(idx)}
-                        disabled={idx === 0 || isLocked || locked.has(idx - 1)}
+                        disabled={nearestUnlocked(idx - 1, -1) == null}
                         aria-label={`Move ${it.label} up`}
                       >
                         ↑
@@ -197,7 +231,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
                       <button
                         className="px-2 py-1 rounded border disabled:opacity-50"
                         onClick={() => moveDown(idx)}
-                        disabled={idx === order.length - 1 || isLocked || locked.has(idx + 1)}
+                        disabled={nearestUnlocked(idx + 1, +1) == null}
                         aria-label={`Move ${it.label} down`}
                       >
                         ↓
