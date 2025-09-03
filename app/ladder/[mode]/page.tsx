@@ -46,7 +46,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
   useEffect(() => {
     const url =
       mode === "today"
-        ? "/api/ladder/today"
+        ? `/api/ladder/today?t=${Date.now().toString().slice(0, 8)}` // cache-buster for ultra-sticky proxies
         : `/api/ladder/random?seed=${encodeURIComponent(seed || String(Date.now()))}`;
 
     fetch(url, { cache: "no-store" })
@@ -164,17 +164,16 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     dragVisibleIndex.current = null;
     if (fromVis == null) return;
 
-    // compute unlocked positions
-    const fromUn = visibleToUnlockedIndex(fromVis);
-    let toVis = visIdx;
-
     // if drop target is locked, steer to nearest unlocked slot
+    let toVis = visIdx;
     if (isIndexLocked(toVis)) {
       toVis = fromVis < visIdx
         ? (nearestUnlockedVisible(visIdx - 1, -1) ?? fromVis)
         : (nearestUnlockedVisible(visIdx + 1, +1) ?? fromVis);
-      if (isIndexLocked(toVis)) return;
+      if (toVis == null || isIndexLocked(toVis)) return;
     }
+
+    const fromUn = visibleToUnlockedIndex(fromVis);
     const toUn = visibleToUnlockedIndex(toVis);
     if (fromUn === -1 || toUn === -1) return;
     moveUnlocked(fromUn, toUn);
@@ -188,10 +187,8 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
   const submit = () => {
     if (!puzzle || status !== "playing") return;
 
-    // recompute visible & correctness
     const vis = visibleItems; // latest
     const correctLabels = correctOrder.map(x => x.label);
-
     const perPos = vis.map((it, i) => it.label === correctLabels[i]);
     setFeedback(perPos);
 
@@ -209,9 +206,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
     // remove any newly-locked items from unlockedItems
     setUnlockedItems(prev => {
       const newlyLockedLabels = new Set<string>();
-      perPos.forEach((ok, i) => {
-        if (ok) newlyLockedLabels.add(vis[i].label);
-      });
+      perPos.forEach((ok, i) => { if (ok) newlyLockedLabels.add(vis[i].label); });
       if (newlyLockedLabels.size === 0) return prev;
       return prev.filter(item => !newlyLockedLabels.has(item.label));
     });
@@ -301,7 +296,7 @@ export default function LadderPage({ params }: { params: { mode: "today" | "rand
 
                   {locked && (
                     <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-300 text-green-800 bg-green-50">
-                      🔒
+                      🔒 
                     </span>
                   )}
                 </li>
